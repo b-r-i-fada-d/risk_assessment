@@ -5,7 +5,6 @@ library("terra")
 library("sf")
 library("raster")
 library("rnaturalearth")
-library("sf")
 library("ggplot2")
 
 setwd("C:/Users/boconnor/OneDrive - Marine Institute/Documents/Rwd/Risk_assessment")
@@ -27,7 +26,41 @@ jsdm_raster <- raster("species_rasters/Raja brachyura.tif")
 # apply threshold species presence
 species_mask <- jsdm_raster
 species_mask[species_mask < threshold] <- NA
-species_mask[species_mask >= threshold] <- 1
+# species_mask[species_mask >= threshold] <- 1
+
+
+# --- make new rasters 
+output_dir <- "results_bottom/env/species_rasters"
+dir.create(output_dir, showWarnings = FALSE)
+
+for (sp in elasmo) {
+  
+  # skip if species not in predictions
+  if (!sp %in% colnames(pred)) next
+  
+  # build a data.frame with lon, lat, predicted probability
+  sp_df <- data.frame(
+    x = xy[, "lon"],
+    y = xy[, "lat"],
+    pred = pred[, sp]
+  )
+  
+  # convert to raster
+  sp_raster <- rasterFromXYZ(sp_df)
+  
+  # optionally, set CRS (coordinate system) to match your fishing rasters
+  crs(sp_raster) <- "+proj=longlat +datum=WGS84"
+  
+  # save as GeoTIFF
+  writeRaster(
+    sp_raster,
+    filename = file.path(output_dir, paste0(gsub(" ", "_", sp), ".tif")),
+    format = "GTiff",
+    overwrite = TRUE
+  )
+}
+
+##################################################################
 
 # resample fishing effort rasters to jSDM raster resolution
 gillnet_res <- resample(gillnet, jsdm_raster, method = "bilinear")
@@ -355,30 +388,3 @@ ggplot(gear_risks,
 #        width = 14,
 #        height = 16,
 #        dpi = 300)
-
-
-# --- Spatial overlap / hotspots
-# Identify cells where multiple species have high risk (hotspots for conservation action).
-# Could calculate correlation of risk maps between species to see if high-risk areas coincide.
-# # Example: correlation between two species
-# cor(subset(all_risk_df, species == "SpeciesA")$risk,
-#     subset(all_risk_df, species == "SpeciesB")$risk)
-
-# --- Metrics like species richness in high-risk areas (number of species with risk > threshold in each cell).
-
-# --- Threshold sensitivity
-# Check how results change with different presence probability thresholds (like your 0.005).
-# Could present a table of total area at risk vs. threshold.
-
-# --- Cumulative risk across species
-# Sum risk across all species per cell 
-# Could quantify proportion of study area that has cumulative risk above certain levels.
-
-
-# --- Spatial statistics: Moran’s I, hotspot analysis, or clustering of high-risk areas.
- 
-# --- Typical Tables/Figures
-# Table: Risk summary per species + gear.
-# Bar chart: Gear contribution per species.
-
-# --- Heatmap: Species richness or high-risk hotspot overlap.
