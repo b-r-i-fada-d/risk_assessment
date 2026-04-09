@@ -14,117 +14,113 @@ otter <- raster("fishing2025_rasters/otter.tif")
 beam <- raster("fishing2025_rasters/beam.tif")
 
 countries <- ne_countries(scale = "medium", returnclass = "sf")
-
-### --- Risk assessments using threshold for noise in SDM output, single species --- ####
-
 # set threshold of minimum predicted presence probability from jSDM
 threshold <- 0.005
 
-# load species raster
-jsdm_raster <- raster("species_rasters/Raja brachyura.tif")
-
-# apply threshold species presence
-species_mask <- jsdm_raster
-species_mask[species_mask < threshold] <- NA
-# species_mask[species_mask >= threshold] <- 1
-
-
-# --- make new rasters 
-output_dir <- "results_bottom/env/species_rasters"
-dir.create(output_dir, showWarnings = FALSE)
-
-for (sp in elasmo) {
-  
-  # skip if species not in predictions
-  if (!sp %in% colnames(pred)) next
-  
-  # build a data.frame with lon, lat, predicted probability
-  sp_df <- data.frame(
-    x = xy[, "lon"],
-    y = xy[, "lat"],
-    pred = pred[, sp]
-  )
-  
-  # convert to raster
-  sp_raster <- rasterFromXYZ(sp_df)
-  
-  # optionally, set CRS (coordinate system) to match your fishing rasters
-  crs(sp_raster) <- "+proj=longlat +datum=WGS84"
-  
-  # save as GeoTIFF
-  writeRaster(
-    sp_raster,
-    filename = file.path(output_dir, paste0(gsub(" ", "_", sp), ".tif")),
-    format = "GTiff",
-    overwrite = TRUE
-  )
-}
-
-##################################################################
-
-# resample fishing effort rasters to jSDM raster resolution
-gillnet_res <- resample(gillnet, jsdm_raster, method = "bilinear")
-otter_res <- resample(otter, jsdm_raster, method = "bilinear")
-beam_res <- resample(beam, jsdm_raster, method = "bilinear")
-
-# replace NAs in gear rasters with 0
-gillnet_res[is.na(gillnet_res)] <- 0
-otter_res[is.na(otter_res)] <- 0
-beam_res[is.na(beam_res)] <- 0
-
-# mask gear rasters by species presence
-risk_g <- gillnet_res*species_mask
-risk_o <- otter_res*species_mask
-risk_b <- beam_res*species_mask
-
-# normalize each gear to 0-1 for plotting
-# I did this without normalising and the map was the same but the legend was different
-# think about this
-normalize <- function(x) {
-  rng <- range(values(x), na.rm = TRUE)
-  (x - rng[1]) / (rng[2] - rng[1])
-  }
-
-risk_g_norm <- normalize(risk_g)
-risk_o_norm <- normalize(risk_o)
-risk_b_norm <- normalize(risk_b)
-
-# convert to dfs
-df_g <- as.data.frame(rasterToPoints(risk_g_norm)); df_g$gear <- "Gillnet"
-df_o <- as.data.frame(rasterToPoints(risk_o_norm)); df_o$gear <- "Otter"
-df_b <- as.data.frame(rasterToPoints(risk_b_norm)); df_b$gear <- "Beam"
-
-risk_df <- rbind(df_g, df_o, df_b)
-colnames(risk_df) <- c("lon", "lat", "risk", "gear")
-risk_df$gear <- factor(risk_df$gear, levels = c("Gillnet", "Otter", "Beam"))
-
-# keep only non-zero risk cells for plotting
-risk_df <- risk_df[risk_df$risk > 0, ]
-
-# load countries
-countries <- ne_countries(scale = "medium", returnclass = "sf")
-
-# --- Plot --- #
-ggplot(risk_df) +
-  geom_tile(aes(x = lon, y = lat, fill = risk)) + 
-  geom_sf(data = countries, fill = NA, color = "black", linewidth = 0.3) +
-  scale_fill_viridis_c(option = "plasma", limits = c(0,1)) +
-  facet_wrap(~gear) +
-  coord_sf(xlim = c(-20,0), ylim = c(45,60)) +
-  labs(title = "Bycatch risk by gear",
-       fill = "Risk (0-1)") +
-  theme_minimal() +
-  theme(panel.background = element_rect(fill = "white", color = NA),
-        plot.background = element_rect(fill = "white", color = NA),
-        strip.text = element_text(size = 10))
+# ### --- Risk assessments using threshold for noise in SDM output, single species --- ####
+# 
+# # load species raster
+# jsdm_raster <- raster("species_rasters/Raja brachyura.tif")
+# 
+# # apply threshold species presence
+# species_mask <- jsdm_raster
+# species_mask[species_mask < threshold] <- NA
+# # species_mask[species_mask >= threshold] <- 1
+# 
+# 
+# # --- make new rasters 
+# output_dir <- "results_bottom/env/species_rasters"
+# dir.create(output_dir, showWarnings = FALSE)
+# 
+# for (sp in elasmo) {
+#   
+#   # skip if species not in predictions
+#   if (!sp %in% colnames(pred)) next
+#   
+#   # build a data.frame with lon, lat, predicted probability
+#   sp_df <- data.frame(
+#     x = xy[, "lon"],
+#     y = xy[, "lat"],
+#     pred = pred[, sp]
+#   )
+#   
+#   # convert to raster
+#   sp_raster <- rasterFromXYZ(sp_df)
+#   
+#   # optionally, set CRS (coordinate system) to match your fishing rasters
+#   crs(sp_raster) <- "+proj=longlat +datum=WGS84"
+#   
+#   # save as GeoTIFF
+#   writeRaster(
+#     sp_raster,
+#     filename = file.path(output_dir, paste0(gsub(" ", "_", sp), ".tif")),
+#     format = "GTiff",
+#     overwrite = TRUE
+#   )
+# }
+# 
+# ##################################################################
+# 
+# # resample fishing effort rasters to jSDM raster resolution
+# gillnet_res <- resample(gillnet, jsdm_raster, method = "bilinear")
+# otter_res <- resample(otter, jsdm_raster, method = "bilinear")
+# beam_res <- resample(beam, jsdm_raster, method = "bilinear")
+# 
+# # replace NAs in gear rasters with 0
+# gillnet_res[is.na(gillnet_res)] <- 0
+# otter_res[is.na(otter_res)] <- 0
+# beam_res[is.na(beam_res)] <- 0
+# 
+# # mask gear rasters by species presence
+# risk_g <- gillnet_res*species_mask
+# risk_o <- otter_res*species_mask
+# risk_b <- beam_res*species_mask
+# 
+# # normalize each gear to 0-1 for plotting
+# # I did this without normalising and the map was the same but the legend was different
+# # think about this
+# normalize <- function(x) {
+#   rng <- range(values(x), na.rm = TRUE)
+#   (x - rng[1]) / (rng[2] - rng[1])
+#   }
+# 
+# risk_g_norm <- normalize(risk_g)
+# risk_o_norm <- normalize(risk_o)
+# risk_b_norm <- normalize(risk_b)
+# 
+# # convert to dfs
+# df_g <- as.data.frame(rasterToPoints(risk_g_norm)); df_g$gear <- "Gillnet"
+# df_o <- as.data.frame(rasterToPoints(risk_o_norm)); df_o$gear <- "Otter"
+# df_b <- as.data.frame(rasterToPoints(risk_b_norm)); df_b$gear <- "Beam"
+# 
+# risk_df <- rbind(df_g, df_o, df_b)
+# colnames(risk_df) <- c("lon", "lat", "risk", "gear")
+# risk_df$gear <- factor(risk_df$gear, levels = c("Gillnet", "Otter", "Beam"))
+# 
+# # keep only non-zero risk cells for plotting
+# risk_df <- risk_df[risk_df$risk > 0, ]
+# 
+# # load countries
+# countries <- ne_countries(scale = "medium", returnclass = "sf")
+# 
+# # --- Plot --- #
+# ggplot(risk_df) +
+#   geom_tile(aes(x = lon, y = lat, fill = risk)) + 
+#   geom_sf(data = countries, fill = NA, color = "black", linewidth = 0.3) +
+#   scale_fill_viridis_c(option = "plasma", limits = c(0,1)) +
+#   facet_wrap(~gear) +
+#   coord_sf(xlim = c(-20,0), ylim = c(45,60)) +
+#   labs(title = "Bycatch risk by gear",
+#        fill = "Risk (0-1)") +
+#   theme_minimal() +
+#   theme(panel.background = element_rect(fill = "white", color = NA),
+#         plot.background = element_rect(fill = "white", color = NA),
+#         strip.text = element_text(size = 10))
 
 #### --- Risk assessment with normalised risk across gears --- ####
 
 species_folder <- "species_rasters/"
 species_files <- list.files(species_folder, pattern="\\.tif$", full.names = TRUE)
-
-# set threshold of minimum predicted presence probability from jSDM
-threshold <- 0.005
 
 # min-max normalisation: changes each gear to 0-1 for plotting
 # I did this without normalising and the map was the same but the legend was different
@@ -193,69 +189,66 @@ for(species_file in species_files){
   all_risk_df <- rbind(all_risk_df, species_risk_df)
 }
 
-#### --- Take 2: not normalised --- ####
-
-species_folder <- "species_rasters/"
-species_files <- list.files(species_folder, pattern="\\.tif$", full.names = TRUE)
-
-# set threshold of minimum predicted presence probability from jSDM
-threshold <- 0.005
-
-# Function to convert raster to dataframe (keep absolute risk)
-raster_to_df_nonnorm <- function(r, gear_name){
-  if(all(is.na(values(r)))){
-    df <- data.frame(
-      lon = NA,
-      lat = NA,
-      risk = 0,
-      gear = factor(gear_name, levels = c("Gillnet","Otter","Beam"))
-    )
-    return(df)
-  } else {
-    df <- as.data.frame(rasterToPoints(r))
-    colnames(df)[1:3] <- c("lon","lat","risk")  # rename x, y, layer
-    df$gear <- factor(gear_name, levels = c("Gillnet","Otter","Beam"))
-    return(df)
-  }
-}
-
-# empty data frame to store all risks
-all_risk_df_nonnorm <- data.frame()
-
-# loop over species
-for(species_file in species_files){
-  species_name <- tools::file_path_sans_ext(basename(species_file))
-  jsdm_raster <- raster(species_file)
-  # create presence mask (1 = presence, NA = absence)
-  species_mask <- jsdm_raster
-  species_mask[species_mask < threshold] <- NA
-  species_mask[species_mask >= threshold] <- 1
-  # resample fishing effort rasters to jSDM raster resolution
-  gillnet_res <- resample(gillnet, jsdm_raster, method = "bilinear")
-  otter_res  <- resample(otter, jsdm_raster, method = "bilinear")
-  beam_res   <- resample(beam, jsdm_raster, method = "bilinear")
-  # replace NAs with 0 (no effort)
-  gillnet_res[is.na(gillnet_res)] <- 0
-  otter_res[is.na(otter_res)] <- 0
-  beam_res[is.na(beam_res)] <- 0
-  # mask gear rasters by species presence
-  risk_g <- gillnet_res * species_mask
-  risk_o <- otter_res  * species_mask
-  risk_b <- beam_res   * species_mask
-  # convert to dataframes (keep absolute magnitude of gear-specific pressure)
-  df_g <- raster_to_df_nonnorm(risk_g, "Gillnet")
-  df_o <- raster_to_df_nonnorm(risk_o, "Otter")
-  df_b <- raster_to_df_nonnorm(risk_b, "Beam")
-  # combine gear dataframes
-  species_risk_df <- rbind(df_g, df_o, df_b)
-  species_risk_df$species <- species_name
-  all_risk_df_nonnorm <- rbind(all_risk_df_nonnorm, species_risk_df)
-}
+# #### --- Take 2: not normalised --- ####
+# 
+# species_folder <- "species_rasters/"
+# species_files <- list.files(species_folder, pattern="\\.tif$", full.names = TRUE)
+# 
+# # set threshold of minimum predicted presence probability from jSDM
+# threshold <- 0.005
+# 
+# # Function to convert raster to dataframe (keep absolute risk)
+# raster_to_df_nonnorm <- function(r, gear_name){
+#   if(all(is.na(values(r)))){
+#     df <- data.frame(
+#       lon = NA,
+#       lat = NA,
+#       risk = 0,
+#       gear = factor(gear_name, levels = c("Gillnet","Otter","Beam"))
+#     )
+#     return(df)
+#   } else {
+#     df <- as.data.frame(rasterToPoints(r))
+#     colnames(df)[1:3] <- c("lon","lat","risk")  # rename x, y, layer
+#     df$gear <- factor(gear_name, levels = c("Gillnet","Otter","Beam"))
+#     return(df)
+#   }
+# }
+# 
+# # empty data frame to store all risks
+# all_risk_df_nonnorm <- data.frame()
+# 
+# # loop over species
+# for(species_file in species_files){
+#   species_name <- tools::file_path_sans_ext(basename(species_file))
+#   jsdm_raster <- raster(species_file)
+#   # create presence mask (1 = presence, NA = absence)
+#   species_mask <- jsdm_raster
+#   species_mask[species_mask < threshold] <- NA
+#   species_mask[species_mask >= threshold] <- 1
+#   # resample fishing effort rasters to jSDM raster resolution
+#   gillnet_res <- resample(gillnet, jsdm_raster, method = "bilinear")
+#   otter_res  <- resample(otter, jsdm_raster, method = "bilinear")
+#   beam_res   <- resample(beam, jsdm_raster, method = "bilinear")
+#   # replace NAs with 0 (no effort)
+#   gillnet_res[is.na(gillnet_res)] <- 0
+#   otter_res[is.na(otter_res)] <- 0
+#   beam_res[is.na(beam_res)] <- 0
+#   # mask gear rasters by species presence
+#   risk_g <- gillnet_res * species_mask
+#   risk_o <- otter_res  * species_mask
+#   risk_b <- beam_res   * species_mask
+#   # convert to dataframes (keep absolute magnitude of gear-specific pressure)
+#   df_g <- raster_to_df_nonnorm(risk_g, "Gillnet")
+#   df_o <- raster_to_df_nonnorm(risk_o, "Otter")
+#   df_b <- raster_to_df_nonnorm(risk_b, "Beam")
+#   # combine gear dataframes
+#   species_risk_df <- rbind(df_g, df_o, df_b)
+#   species_risk_df$species <- species_name
+#   all_risk_df_nonnorm <- rbind(all_risk_df_nonnorm, species_risk_df)
+# }
 
 #### --- Plot faceted by species (rows) and gear (columns) --- ####
-
-# filter only valid lon/lat and positive risk
-nonnorm_plot <- all_risk_df_nonnorm[!is.na(all_risk_df_nonnorm$lon) & all_risk_df_nonnorm$risk > 0, ]
 
 p <- ggplot(all_risk_df) +
   geom_tile(aes(x = lon, y = lat, fill = risk)) +
@@ -269,9 +262,33 @@ p <- ggplot(all_risk_df) +
         plot.background = element_rect(fill = "white", color = NA),
         strip.text = element_text(size = 10))
 
-ggsave("output/bycatch_risk_species_gear_norm.png", plot=p, # change here
+ggsave("output/bycatch_risk_fewer_species_gear.png", plot=p, # change here
        width = 10, height = 4 + length(unique(all_risk_df$species))*1.5,  # adjust height by #species
        dpi=300)
+
+# --- try splitting
+
+# Split species names into groups of 5
+species_list <- unique(all_risk_df$species)
+species_chunks <- split(species_list, ceiling(seq_along(species_list) / 4))
+
+# Loop and save
+for(i in seq_along(species_chunks)) {
+  p_chunk <- all_risk_df %>% 
+    filter(species %in% species_chunks[[i]]) %>%
+    ggplot() +
+    geom_tile(aes(x = lon, y = lat, fill = risk)) +
+    geom_sf(data = countries, fill = NA, color = "black", linewidth = 0.3) +
+    scale_fill_viridis_c(option = "plasma") +
+    facet_grid(species ~ gear) +
+    coord_sf(xlim = c(-20, 0), ylim = c(45, 60)) +
+    theme_minimal() +
+    theme(panel.background = element_rect(fill = "white", color = NA),
+          plot.background = element_rect(fill = "white", color = NA),
+          strip.text = element_text(size = 10))
+  
+  ggsave(paste0("output/risk_batch_", i, ".png"), plot = p_chunk, width = 12, height = 15)
+}
 
 #### --- Cumulative risk --- ####
 
@@ -295,21 +312,21 @@ species_order <- c(
   "Centroscymnus coelolepis",
   "Dipturus oxyrinchus",
   "Centroselachus crepidater",
-  "Scymnodon ringens",
   "Centroscyllium fabricii",  
   "Etmopterus princeps",
-  "Etmopterus spinax",
-  "Hexanchus griseus",
-  "Galeus melastomus",
-  "Leucoraja circularis",
-  "Raja clavata",
-  "Squalus acanthias",
-  "Raja montagui",
-  "Leucoraja naevus",
   "Apristurus aphyodes",
   "Apristurus manis",
-  "Raja undulata",
-  "Raja brachyura"
+  "Scymnodon ringens", 
+  "Etmopterus spinax",
+  "Hexanchus griseus",
+  "Dipturus intermedius",
+  "Galeus melastomus",
+  "Raja clavata",
+  "Leucoraja naevus",
+  "Squalus acanthias", 
+  "Leucoraja circularis",
+  "Raja montagui", 
+  "Raja brachyura" 
 )
 
 cumulative_risk_df$species <- factor(cumulative_risk_df$species,
@@ -320,7 +337,7 @@ p <- ggplot(cumulative_risk_df) +
   geom_tile(aes(x = lon, y = lat, fill = cum_risk_norm)) +
   geom_sf(data = countries, fill = NA, color = "black", linewidth = 0.3) +
   scale_fill_viridis_c(option = "plasma", limits = c(0,1)) +
-  facet_wrap(~species, ncol = 4) +  # 4 columns, species follow factor order
+  facet_wrap(~species, ncol = 5) +  # 4 columns, species follow factor order
   coord_sf(xlim = c(-20, 0), ylim = c(45, 60)) +
   labs(title = "Cumulative bycatch risk across all gears",
        fill = "Cumulative Risk (0-1)") +
@@ -329,13 +346,18 @@ p <- ggplot(cumulative_risk_df) +
         plot.background = element_rect(fill = "white", color = NA),
         strip.text = element_text(size = 10))
 
-ggsave("output/cumulative_bycatch_risk.png",
+ggsave("output/cumulative_bycatch_risk_fewer.png",
        plot = p,        
        width = 14,
        height = 16,
        dpi = 300)
 
+write_csv(cumulative_risk_df, "risk_cumulative_gears.csv")
+write_csv(all_risk_df, "risk_all_gears.csv")
+
 #### --- Statistics --- ####
+
+risk_all_gears <- read_csv("risk_all_gears.csv")
 
 # --- Summary statistics per species
 summary <- all_risk_df %>%
